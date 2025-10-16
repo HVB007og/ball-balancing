@@ -1,0 +1,51 @@
+import math
+import time
+from IK2 import *
+import rospy
+from std_msgs.msg import String
+
+
+
+
+def circle_tracer(r, step=0.01):
+    theta = 0
+    while True:
+        nx = r * math.cos(theta)
+        ny = r * math.sin(theta)
+        yield nx, ny  # Yield the current (nx, ny) coordinates
+        theta += step  # Increment angle for the next point on the circle
+        if theta >= 2 * math.pi:  # Reset theta after a full circle
+            theta = 0
+
+# Example usage: trace the circle continuously
+radius = 1
+tracer = circle_tracer(radius)
+
+def Publisher():
+    rospy.init_node('angle_pub_node', anonymous=False)
+    pub = rospy.Publisher('angles', String, queue_size=10)
+    rate = rospy.Rate(10)
+    
+    tracer = circle_tracer(radius)  # Initialize the generator here
+    
+    while not rospy.is_shutdown():
+        nx, ny = next(tracer)  # Get the next (nx, ny) value from the tracer
+        
+        mag = 1
+        # Calculate angles
+        print(f'{nx},{ny}')
+        a = calculate_a(nx, ny, 1)  *mag
+        b = calculate_b(nx, ny, 1) *mag
+        c = calculate_c(nx, ny, 1) *mag
+
+        print(f'{a},{b},{c}')
+        offset = 0
+        # Publish the calculated angles
+        pub.publish(f'{int(b)*(80/9)*(1/4)-offset},{int(a)*(80/9)*(1/4)-offset},{int(c)*(80/9)*(1/4)-offset}')
+        rate.sleep()  # Sleep for rate control
+
+if __name__ == "__main__":
+    try:
+        Publisher()
+    except rospy.ROSInterruptException:
+        pass

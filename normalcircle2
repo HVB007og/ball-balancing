@@ -1,0 +1,74 @@
+import math
+import time
+import rospy
+from std_msgs.msg import String
+import matplotlib.pyplot as plt  # Importing matplotlib for plotting
+from IK2 import *
+
+
+def circle_tracer(r, step=0.01):
+    theta = 0
+    while True:
+        nx = r * math.cos(theta)
+        ny = r * math.sin(theta)
+        yield nx, ny  # Yield the current (nx, ny) coordinates
+        theta += step  # Increment angle for the next point on the circle
+        if theta >= 2 * math.pi:  # Reset theta after a full circle
+            theta = 0
+
+# Example usage: trace the circle continuously
+radius = 1
+tracer = circle_tracer(radius)
+
+def Publisher():
+    rospy.init_node('angle_pub_node', anonymous=False)
+    pub = rospy.Publisher('angles', String, queue_size=10)
+    rate = rospy.Rate(60)
+
+    # Setup the real-time plot
+    plt.ion()  # Turn on interactive mode
+    fig, ax = plt.subplots()
+    line, = ax.plot([], [], 'ro')  # Line object to update (red dot for points)
+    
+    # Set up the plot limits
+    ax.set_xlim(-radius, radius)
+    ax.set_ylim(-radius, radius)
+    ax.set_xlabel('nx')
+    ax.set_ylabel('ny')
+    ax.set_title('Real-time nx, ny plot')
+
+    fig.canvas.draw()  # Initial draw to cache the renderer
+
+    tracer = circle_tracer(radius)  # Initialize the generator here
+    
+    while not rospy.is_shutdown():
+        nx, ny = next(tracer)  # Get the next (nx, ny) value from the tracer
+
+        # Update the plot with the new point
+        line.set_data(nx, ny)
+        
+        # Clear the background and redraw
+        ax.draw_artist(ax.patch)  # Clear the plot background
+        ax.draw_artist(line)      # Redraw the updated point
+        fig.canvas.blit(ax.bbox)  # Efficiently redraw only the parts that changed
+        fig.canvas.flush_events()  # Update the figure in real-time
+        time.sleep(0.1)  # Small delay for smoother real-time updates
+
+        # Calculate angles
+        mag = 1
+        print(f'{nx},{ny}')
+        a = calculate_a(nx, ny, 1)  *mag
+        b = calculate_b(nx, ny, 1) *mag
+        c = calculate_c(nx, ny, 1) *mag
+
+        print(f'{a},{b},{c}')
+        offset = 0
+        # Publish the calculated angles
+        pub.publish(f'{int(b)*(80/9)*(1/4)-offset},{int(a)*(80/9)*(1/4)-offset},{int(c)*(80/9)*(1/4)-offset}')
+        rate.sleep()  # Sleep for rate control
+
+if __name__ == "__main__":
+    try:
+        Publisher()
+    except rospy.ROSInterruptException:
+        pass
